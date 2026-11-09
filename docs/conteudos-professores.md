@@ -6,4 +6,4 @@ O identificador da disciplina deve ser único, com letras minúsculas, números 
 
 As migrações `20261109155525_teacher_catalog.sql` e `20261109155633_teacher_catalog_limits.sql` foram aplicadas ao Supabase deste projeto e devem ser executadas antes da interface noutros ambientes. As funções autorizam a criação no servidor e os testes de RLS cobrem permissões e publicação. Os fluxos completos no navegador com contas reais ainda precisam de validação.
 
-A migração `20261109170000_teacher_delete_subject.sql` é necessária para a exclusão e a listagem de exames próprios; ainda deve ser aplicada ao Supabase antes de disponibilizar esta versão.
+A migração `20261109162429_teacher_delete_subject.sql` é necessária para a exclusão e a listagem de exames próprios; foi aplicada ao Supabase deste projeto e deve ser aplicada antes de disponibilizar esta versão noutros ambientes.

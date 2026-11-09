@@ -30,7 +30,7 @@ test('authorized teachers publish to shared catalog without modifying others', a
       insert into public.class_teachers(user_id) select id from auth.users where email in ('teacher@example.test','otherteacher@example.test');
       insert into public.subjects(slug,title,published) values('existing','Existing',true),('hidden','Hidden',false);
     `);
-    for (const migration of ['20261109155525_teacher_catalog.sql', '20261109155633_teacher_catalog_limits.sql', '20261109170000_teacher_delete_subject.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
+    for (const migration of ['20261109155525_teacher_catalog.sql', '20261109155633_teacher_catalog_limits.sql', '20261109162429_teacher_delete_subject.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
     const ids=Array.from({length:4},(_,i)=>`00000000-0000-4000-8000-00000000000${i+1}`);
     async function as(i) {await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${ids[i-1]}',false)`)}
     await as(2);
