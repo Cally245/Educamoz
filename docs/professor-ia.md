@@ -24,7 +24,7 @@ Todas as novas tabelas usam RLS. Anónimos não podem reservar, e utilizadores n
 3. Plano de estudo estruturado, ajustável e persistido; pedidos conversacionais de plano podem ser feitos ao professor, mas não são um sistema de planos.
 4. Tempo real de estudo, métricas de domínio, gráficos de evolução e métricas de exercícios além dos exames existentes.
 5. Pagamentos, subscrições e gestão de direitos Premium. A tabela de planos é uma base técnica sem interface de aquisição.
-6. Limitação de custo global, retenção automática dos eventos de utilização, observabilidade, recuperação de contas, avaliação pedagógica por especialistas e testes de segurança independentes.
+6. Limitação de custo global, retenção automática dos eventos de utilização, observabilidade completa, recuperação de contas, avaliação pedagógica por especialistas e testes de segurança independentes.
 
 ## Validação
 
@@ -33,3 +33,12 @@ Todas as novas tabelas usam RLS. Anónimos não podem reservar, e utilizadores n
 ## Configuração e implantação
 
 A migração `20261109112552_tutor_sessions.sql` é aditiva e já foi aplicada ao projeto Supabase ligado nesta sessão; aplique-a em qualquer outro ambiente antes do novo backend. Variáveis: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (públicas), `GEMINI_API_KEY` (apenas servidor), `GEMINI_MODEL` opcional (por omissão `gemini-flash-latest`) e `PORT` local opcional. Não colocar chaves em ficheiros versionados nem em mensagens. Atualizações de ambiente na Vercel requerem novo deploy. A chave enviada anteriormente na conversa ficou exposta e deve ser revogada/substituída diretamente no fornecedor e na Vercel.
+
+
+## Diagnóstico operacional de `/api/ai`
+
+Cada pedido recebe um `X-Request-Id` gerado pelo servidor. Nos logs da função Vercel, o evento JSON `ai_request` inclui esse identificador, etapa, modelo, estado HTTP devolvido ao cliente, duração total e, se houve chamada ao fornecedor, duração do Gemini. Respostas HTTP de erro do Gemini incluem também `geminiHttpStatus` e, quando reconhecido, `geminiStatus`. Não são registados corpos de pedido ou resposta, identidade de utilizador, tokens nem chaves.
+
+O texto de erro do Gemini pode incluir dados de estudantes ou credenciais. Por isso `geminiMessage` mostra a mensagem original apenas se corresponder exatamente a uma lista de mensagens estáticas conhecidas; caso contrário indica que foi suprimida. Não se deve contornar esta proteção registando indiscriminadamente o corpo do erro. O HTTP e o estado do fornecedor continuam a ajudar no diagnóstico, mas podem não revelar a causa exata. Esta mudança ainda não foi validada num pedido Gemini real.
+
+Para diagnosticar: publicar a alteração no ambiente apropriado, iniciar sessão como estudante e enviar uma pergunta; recolher apenas o cabeçalho `X-Request-Id` da resposta `/api/ai` e procurar esse identificador nos logs de runtime da função. Não partilhar o cabeçalho Authorization, conteúdo da conversa ou chaves. A chave configurada só em Production não é herdada por Preview; se necessário, um administrador deve configurar uma chave adequada para Preview diretamente na Vercel e criar novo deploy. A disponibilidade de um modelo, a validade da chave, faturação e quota devem ser confirmadas com o fornecedor; um estado READY da Vercel ou testes unitários não comprovam uma geração bem-sucedida. Não mudar automaticamente para outro modelo sem verificar a disponibilidade e impacto.
