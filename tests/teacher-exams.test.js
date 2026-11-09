@@ -1,0 +1,65 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+
+test('study links, mixed exam grading and class ranking are isolated by role', async () => {
+ const db=new PGlite();
+ try {
+  await db.exec(`create role anon; create role authenticated; create schema auth; create schema extensions;
+  create table auth.users(id uuid primary key,email text);
+  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+  create function extensions.gen_random_bytes(integer) returns bytea language sql volatile as $$select decode(substr(md5(random()::text),1,$1*2),'hex')$$;
+  grant usage on schema public,auth to authenticated;
+  insert into auth.users values ('00000000-0000-4000-8000-000000000001','teacher@example.test'),('00000000-0000-4000-8000-000000000002','student@example.test'),('00000000-0000-4000-8000-000000000003','peer@example.test'),('00000000-0000-4000-8000-000000000004','other@example.test');`);
+  for(const file of ['20261109103721_educamoz_foundation.sql','20261109103735_protect_material_topic_deletion.sql','20261109110257_student_workspace.sql','20261109153033_classrooms.sql','20261109161436_teacher_study_exams.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+  const ids=Array.from({length:4},(_,i)=>`00000000-0000-4000-8000-00000000000${i+1}`);
+  await db.query("insert into public.subjects(title,slug,published) values('Math','math',true)");
+  await db.query("insert into public.class_teachers(user_id) values($1),($2)",[ids[0],ids[3]]);
+  const subject=(await db.query('select id from public.subjects')).rows[0].id;
+  async function as(i){await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${ids[i-1]}',false)`)}
+  await as(2); await assert.rejects(()=>db.query("select public.teacher_create_material('X','','https://example.test',null)"));
+  await as(1); await assert.rejects(()=>db.query("select public.teacher_create_material('X','','javascript:alert(1)',null)"));
+  await db.query("select public.teacher_create_material('X','','https://example.test',null)");
+  const questions=[{kind:'multiple_choice',question:'One?',options:['A','B'],correct:1},{kind:'written',question:'Explain'}];
+  const exam=(await db.query('select public.teacher_create_exam($1,$2,$3,$4::jsonb) as id',[subject,'Exam','',JSON.stringify(questions)])).rows[0].id;
+  const classroom=(await db.query("select public.create_classroom('Class','') as id")).rows[0].id;
+  const code=(await db.query('select public.classroom_code($1) as code',[classroom])).rows[0].code;
+  await as(2); await db.query('select public.join_classroom($1)',[code]);
+  const qs=(await db.query('select id,kind from public.exam_questions where exam_id=$1 order by position',[exam])).rows;
+  assert.equal((await db.query('select * from public.exam_answer_keys')).rows.length,0);
+  await assert.rejects(()=>db.query('select * from public.submit_exam($1,$2::jsonb)',[exam,JSON.stringify({[qs[0].id]:1,[qs[1].id]:' '})]));
+  await assert.rejects(()=>db.query('select * from public.submit_exam($1,$2::jsonb)',[exam,JSON.stringify({[qs[0].id]:3,[qs[1].id]:'Answer'})]));
+  const answers={[qs[0].id]:1,[qs[1].id]:'My answer'};
+  const attempt=(await db.query('select * from public.submit_exam($1,$2::jsonb)',[exam,JSON.stringify(answers)])).rows[0];
+  assert.equal(attempt.status,'pending_review'); assert.equal(attempt.final_grade,null);
+  const answer=(await db.query('select id,answer from public.exam_written_answers where attempt_id=$1',[attempt.id])).rows[0];
+  assert.equal(answer.answer,'My answer');
+  await assert.rejects(()=>db.query('select public.teacher_grade_exam_answer($1,20,$2)',[answer.id,'test']));
+  await assert.rejects(()=>db.query('select * from public.class_exam_ranking($1,$2)',[classroom,exam]));
+  await as(3); await db.query('select public.join_classroom($1)',[code]);
+  assert.equal((await db.query('select * from public.exam_written_answers')).rows.length,0);
+  await as(4); assert.equal((await db.query('select * from public.teacher_exam_reviews()')).rows.length,0);
+  await assert.rejects(()=>db.query('select public.teacher_grade_exam_answer($1,20,$2)',[answer.id,'test']));
+  await assert.rejects(()=>db.query('select * from public.class_exam_ranking($1,$2)',[classroom,exam]));
+  await as(1);
+  assert.equal((await db.query('select * from public.class_exam_ranking($1,$2)',[classroom,exam])).rows.length,0);
+  const reviews=(await db.query('select * from public.teacher_exam_reviews()')).rows; assert.equal(reviews.length,1);
+  await assert.rejects(()=>db.query('select public.teacher_grade_exam_answer($1,21,$2)',[answer.id,'']));
+  await db.query('select public.teacher_grade_exam_answer($1,16,$2)',[answer.id,'Bom']);
+  const ranks=(await db.query('select * from public.class_exam_ranking($1,$2)',[classroom,exam])).rows; assert.equal(ranks.length,1); assert.equal(Number(ranks[0].grade),18);
+  await as(2); const graded=(await db.query('select status,final_grade from public.exam_attempts where id=$1',[attempt.id])).rows[0]; assert.equal(graded.status,'graded'); assert.equal(Number(graded.final_grade),18);
+  assert.equal((await db.query('select feedback from public.exam_written_answers where id=$1',[answer.id])).rows[0].feedback,'Bom');
+  await db.exec('reset role');
+  const old=(await db.query("insert into public.exams(subject_id,title,published) values($1,'Legacy',true) returning id",[subject])).rows[0].id;
+  const oldQ=(await db.query("insert into public.exam_questions(exam_id,position,question,options) values($1,1,'Old question', '[\"A\",\"B\"]') returning id",[old])).rows[0].id;
+  await db.query('insert into public.exam_answer_keys(question_id,correct_index) values($1,0)',[oldQ]);
+  await as(2); const oldResult=(await db.query('select * from public.submit_exam($1,$2::jsonb)',[old,JSON.stringify({[oldQ]:0})])).rows[0];
+  assert.equal(oldResult.status,'graded'); assert.equal(Number(oldResult.final_grade),20);
+  const oldString=(await db.query('select * from public.submit_exam($1,$2::jsonb)',[old,JSON.stringify({[oldQ]:'0'})])).rows[0]; assert.equal(Number(oldString.final_grade),20);
+  await as(1); await db.exec('reset role'); await db.query('delete from public.class_teachers where user_id=$1',[ids[0]]);
+  await as(1); await assert.rejects(()=>db.query('select * from public.class_exam_ranking($1,$2)',[classroom,exam]));
+  await assert.rejects(()=>db.query('select * from public.teacher_exam_reviews()'));
+  await assert.rejects(()=>db.query('select public.teacher_grade_exam_answer($1,10,$2)',[answer.id,'']));
+ } finally {await db.close()}
+});
