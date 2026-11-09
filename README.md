@@ -26,3 +26,7 @@ O Vite encaminha `/api` para o servidor local. Para uma execução de produção
 ## Antes de publicar
 
 Esta é uma base funcional, não uma implantação de produção concluída. Antes de disponibilizar publicamente, reforçar a autorização e adicionar limitação de pedidos persistente e partilhada para a API de IA, proteção contra abuso e controlo de custos; configurar políticas RLS e modelo de dados no Supabase para sincronização; implementar gestão segura de conteúdos e permissões administrativas; e rever privacidade, consentimento (incluindo menores), acessibilidade, monitorização e testes. O armazenamento local pode ser apagado pelo navegador e não é adequado para dados sensíveis. O servidor não deve ser exposto com uma chave Gemini até estas proteções estarem implementadas.
+
+## Publicar na Vercel
+
+O projeto inclui `vercel.json`: a Vercel compila o Vite para `dist`, encaminha as rotas da área de estudo para a aplicação e disponibiliza `/api/ai` como função Node. Liga o projeto ao repositório, define as variáveis de ambiente necessárias na Vercel e cria uma implantação a partir da versão pretendida. Alterações numa pull request não aparecem automaticamente no domínio de produção enquanto não forem integradas na branch de produção e implantadas. O limitador de pedidos em memória não é partilhado entre instâncias serverless; usa um limitador persistente antes de ativar a chave Gemini em produção.
