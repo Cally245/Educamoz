@@ -24,6 +24,7 @@
     "remark-math": "^6.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.5"
   },

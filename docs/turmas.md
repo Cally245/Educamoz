@@ -1,0 +1,7 @@
+# Turmas — configuração e privacidade
+
+Professores autorizados podem criar turmas, obter o código privado, publicar trabalhos em texto com link opcional; estudantes podem entrar pelo código e entregar e atualizar uma resposta em texto com link opcional. Cada entrega é visível apenas ao estudante autor e ao professor autorizado proprietário. O professor vê o nome de perfil, ou «Estudante» se estiver vazio. A data guardada é a da primeira entrega.
+
+O administrador autoriza ou remove professores pelo email de uma conta registada. Retirar a autorização impede a gestão, sem apagar turmas ou entregas. Códigos aleatórios de 96 bits são únicos no banco e só o professor autorizado os pode consultar pela função dedicada. A entrada é limitada a 10 tentativas por minuto por conta. Qualquer pessoa que conheça o código pode entrar: partilha-o apenas com estudantes convidados. Ainda não há rotação de código, remoção de estudantes nem limpeza global dos eventos antigos.
+
+A migração `20261109153033_classrooms.sql` já foi aplicada ao Supabase deste projeto e deve ser aplicada antes da interface noutros ambientes. Tabelas protegidas por RLS e funções com verificação de identidade. Links HTTP(S) são externos e dependem das permissões do destino. Não há anexos, comentários, prazos, notas nem notificações. Valida os fluxos completos no navegador com contas reais distintas antes de os considerar comprovados em produção.
