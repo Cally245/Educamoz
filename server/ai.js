@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { generateGeminiAnswer, GeminiError } from './gemini.js';
 // Keep the provider key on the server and validate each bearer token with Supabase.
 const authClient = process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
   ? createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {auth:{persistSession:false, autoRefreshToken:false}}) : null;
@@ -20,12 +21,10 @@ export default async function aiHandler(req,res){
     if(recent.length >= 10) return res.status(429).json({error:'Atingiste o limite de pedidos. Tenta novamente dentro de um minuto.'});
     recent.push(now); requests.set(authData.user.id, recent);
     if(requests.size > 10000) for(const [id, times] of requests) if(times.every(t => now-t >= 60000)) requests.delete(id);
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:'És um professor paciente para estudantes moçambicanos. Responde em português claro, explica passo a passo e incentiva o pensamento autónomo. Não inventes factos.'}]},contents:[{role:'user',parts:[{text:message}]}]})});
-    const data = await response.json();
-    if(!response.ok) throw new Error('provider');
-    const text = data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('');
-    if(!text) throw new Error('empty');
+    const text = await generateGeminiAnswer({message, apiKey:process.env.GEMINI_API_KEY, model:process.env.GEMINI_MODEL || undefined});
     res.json({text});
-  } catch { res.status(502).json({error:'Não foi possível obter uma resposta. Tenta novamente mais tarde.'}); }
+  } catch (error) {
+    if (error instanceof GeminiError) return res.status(error.status).json({error:error.message});
+    res.status(502).json({error:'Não foi possível obter uma resposta. Tenta novamente mais tarde.'});
+  }
 }
