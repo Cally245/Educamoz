@@ -3,24 +3,25 @@ import {supabase} from './lib';
 async function query(p) {const {data,error}=await p;if(error)throw error;return data;}
 const emptyQuestion=()=>({kind:'multiple_choice',question:'',options:['',''],correct:'0'});
 export default function TeacherExams({session,onPublished}) {
-  const [teacher,setTeacher]=useState(false),[subjects,setSubjects]=useState([]),[reviews,setReviews]=useState([]),[loadError,setLoadError]=useState('');
+  const [teacher,setTeacher]=useState(false),[subjects,setSubjects]=useState([]),[exams,setExams]=useState([]),[reviews,setReviews]=useState([]),[loadError,setLoadError]=useState(''),[loading,setLoading]=useState(true);
   const [subject,setSubject]=useState(''),[title,setTitle]=useState(''),[description,setDescription]=useState(''),[questions,setQuestions]=useState([emptyQuestion()]);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const load=useCallback(async()=>{
     const role=await query(supabase.from('class_teachers').select('user_id').eq('user_id',session.user.id).maybeSingle());
-    setTeacher(Boolean(role)); if(!role)return;
-    const [items,answers]=await Promise.all([query(supabase.from('subjects').select('id,title').eq('published',true).order('title')),query(supabase.rpc('teacher_exam_reviews'))]);
-    setSubjects(items||[]);setReviews(answers||[]);setLoadError('');
+    if(!role){setTeacher(false);return;}
+    const [items,answers,ownExams]=await Promise.all([query(supabase.from('subjects').select('id,title').eq('published',true).order('title')),query(supabase.rpc('teacher_exam_reviews')),query(supabase.from('exams').select('id,title,published').eq('created_by',session.user.id).order('created_at',{ascending:false}))]);
+    setSubjects(items||[]);setExams(ownExams||[]);setReviews(answers||[]);setTeacher(true);setLoadError('');
   },[session.user.id]);
-  useEffect(()=>{load().catch(()=>setLoadError('Não foi possível carregar a área de professor.'));},[load]);
+  useEffect(()=>{load().catch(()=>setLoadError('Não foi possível carregar a área de professor.')).finally(()=>setLoading(false));},[load]);
   function changeQuestion(i,patch){setQuestions(items=>items.map((item,index)=>index===i?{...item,...patch}:item));}
   async function publish(event){event.preventDefault();setBusy(true);setError('');setNotice('');try{
     const payload=questions.map(q=>q.kind==='written'?{kind:q.kind,question:q.question.trim()}:{kind:q.kind,question:q.question.trim(),options:q.options.map(o=>o.trim()),correct:Number(q.correct)});
     if(payload.some(q=>!q.question || (q.kind==='multiple_choice'&&(q.options.some(o=>!o)||q.correct>=q.options.length)))) throw new Error('Preenche todas as perguntas e opções e escolhe a resposta correta.');
     await query(supabase.rpc('teacher_create_exam',{p_subject_id:subject,p_title:title.trim(),p_description:description.trim(),p_questions:payload}));
-    setTitle('');setDescription('');setSubject('');setQuestions([emptyQuestion()]);setNotice('Exame publicado no simulador para todos os estudantes.');onPublished();
+    setTitle('');setDescription('');setSubject('');setQuestions([emptyQuestion()]);setNotice('Exame publicado no simulador para todos os estudantes.');onPublished?.();try {await load();} catch {setLoadError('Exame publicado, mas não foi possível atualizar a lista. Recarrega a página.');}
   }catch(err){setError(err.message?.startsWith('Preenche')?err.message:'Não foi possível publicar o exame. Confirma os dados e a autorização.')}finally{setBusy(false)}}
-  if(!teacher)return loadError?<p role="alert" className="error">{loadError}</p>:null;
+  if(loading)return <div className="panel state-message" role="status">A carregar gestão de exames...</div>;
+  if(!teacher)return loadError?<div className="panel error" role="alert">{loadError} <button className="link-button" onClick={()=>{setLoading(true);load().catch(()=>setLoadError('Não foi possível carregar a área de professor.')).finally(()=>setLoading(false));}}>Tentar novamente</button></div>:<p>Área reservada a professores autorizados.</p>;
   return <section className="teacher-exams"><div className="content-heading"><div><h2>Gestão de exames</h2><p>Exames publicados ficam disponíveis a todos os estudantes. As respostas escritas são avaliadas pelo autor do exame.</p></div></div>
     <div className="panel class-form"><h2>Criar exame</h2><form onSubmit={publish}>
       <label>Disciplina publicada<select value={subject} onChange={e=>setSubject(e.target.value)} required><option value="">Escolhe uma disciplina</option>{subjects.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
@@ -30,6 +31,7 @@ export default function TeacherExams({session,onPublished}) {
         {questions.length>1&&<button className="link-button" type="button" onClick={()=>setQuestions(items=>items.filter((_,index)=>index!==i))}>Remover pergunta</button>}</fieldset>)}
       <button type="button" className="link-button" disabled={questions.length>=30} onClick={()=>setQuestions(items=>[...items,emptyQuestion()])}>+ Adicionar pergunta</button><button className="button" disabled={busy}>{busy?'A publicar...':'Publicar exame'}</button>
     </form>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="success" role="status">{notice}</p>}</div>
+    <div className="panel class-form teacher-reviews"><h2>Os teus exames</h2>{exams.length ? exams.map(item=><div className="activity-item" key={item.id}><div><b>{item.title}</b><small>{item.published?'Publicado':'Não publicado'}</small></div></div>) : <p>Ainda não publicaste exames.</p>}</div>
     <div className="panel class-form teacher-reviews"><h2>Respostas escritas dos teus exames</h2><p>O resultado final só fica disponível após avaliar todas as respostas escritas da tentativa.</p>{loadError&&<p className="error" role="alert">{loadError}</p>}{reviews.length?reviews.map(item=><Review key={item.answer_id} review={item} onSaved={load}/>):<p>Ainda não há respostas para avaliar.</p>}</div>
   </section>;
 }

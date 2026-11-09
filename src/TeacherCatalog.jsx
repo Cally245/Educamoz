@@ -7,7 +7,7 @@ async function request(promise) {
   return data;
 }
 
-export default function TeacherCatalog({session, onPublished}) {
+export default function TeacherCatalog({session, onPublished, onSubjectDeleted}) {
   const [teacher, setTeacher] = useState(null);
   const [subjects, setSubjects] = useState([]), [ownSubjects, setOwnSubjects] = useState([]), [ownTopics, setOwnTopics] = useState([]), [topics, setTopics] = useState([]);
   const [kind, setKind] = useState('subject'), [title, setTitle] = useState(''), [slug, setSlug] = useState(''), [description, setDescription] = useState(''), [subjectId, setSubjectId] = useState('');
@@ -47,6 +47,21 @@ export default function TeacherCatalog({session, onPublished}) {
       setError(err.code === '23505' ? 'Este identificador já existe. Escolhe outro.' : (err.message?.startsWith('Usa um identificador') || err.message?.startsWith('Indica um link')) ? err.message : 'Não foi possível publicar. Confirma a autorização e os dados e tenta novamente.');
     } finally {setBusy(false);}
   }
+  async function removeSubject(item) {
+    if (!window.confirm(`Excluir permanentemente a disciplina “${item.title}” do catálogo para todos? A exclusão só é possível se não houver matérias ou exames associados.`)) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await request(supabase.rpc('teacher_delete_subject', {p_subject_id:item.id}));
+      setOwnSubjects(items=>items.filter(subject=>subject.id!==item.id));
+      setSubjects(items=>items.filter(subject=>subject.id!==item.id));
+      if (subjectId===item.id) setSubjectId('');
+      setNotice('Disciplina excluída do catálogo.');
+      onSubjectDeleted(item.id);
+      try {await load();} catch {setError('A disciplina foi excluída, mas não foi possível atualizar a lista. Recarrega a página.');}
+    } catch (err) {
+      setError(err.code==='23503' ? 'Esta disciplina tem matérias ou exames associados. Contacta o administrador para rever esses conteúdos antes da exclusão.' : 'Não foi possível excluir a disciplina. Confirma a autorização e tenta novamente.');
+    } finally {setBusy(false);}
+  }
   if (loading) return null;
   if (!teacher) return error ? <div className="error teacher-catalog-error" role="alert">{error}</div> : null;
   return <section className="teacher-catalog" aria-labelledby="teacher-catalog-title">
@@ -59,8 +74,8 @@ export default function TeacherCatalog({session, onPublished}) {
         <label>Descrição<textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4} maxLength={5000}/></label>
         <button className="button" disabled={busy}>{busy?'A publicar...':'Publicar para todos'}</button>
       </form>{error && <div className="error" role="alert">{error}</div>}{notice && <p className="success" role="status">{notice}</p>}
-    </div><div className="panel history-panel teacher-catalog-list"><h3>Conteúdos que publicaste</h3><p>Para alterar ou retirar conteúdo, contacta o administrador.</p>
-      <h4>Disciplinas</h4>{ownSubjects.length ? ownSubjects.map(item=><div className="activity-item" key={item.id}><div><b>{item.title}</b><small>{item.published?'Publicada':'Não publicada'}</small></div></div>) : <p>Ainda não publicaste disciplinas.</p>}
+    </div><div className="panel history-panel teacher-catalog-list"><h3>Conteúdos que publicaste</h3><p>Podes excluir as tuas disciplinas sem matérias ou exames associados. Para alterar ou retirar outros conteúdos, contacta o administrador.</p>
+      <h4>Disciplinas</h4>{ownSubjects.length ? ownSubjects.map(item=><div className="activity-item" key={item.id}><div><b>{item.title}</b><small>{item.published?'Publicada':'Não publicada'}</small></div><button type="button" className="link-button subject-delete" disabled={busy} onClick={()=>removeSubject(item)} aria-label={`Excluir disciplina ${item.title}`}>Excluir</button></div>) : <p>Ainda não publicaste disciplinas.</p>}
       <h4>Matérias</h4>{ownTopics.length ? ownTopics.map(item=><div className="activity-item" key={item.id}><div><b>{item.title}</b><small>{item.published && subjects.some(subject=>subject.id===item.subject_id)?'Publicada':'Não visível no catálogo'}</small></div></div>) : <p>Ainda não publicaste matérias.</p>}
     </div></div>
   </section>;
