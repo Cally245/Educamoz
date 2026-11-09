@@ -18,6 +18,8 @@ test('authorized teachers publish to shared catalog without modifying others', a
       create function public.is_admin() returns boolean language sql stable security definer as $$select coalesce(auth.uid()='00000000-0000-4000-8000-000000000001'::uuid,false)$$;
       create table public.subjects(id uuid primary key default gen_random_uuid(), slug text not null unique check(slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'), title text not null check(char_length(title) between 1 and 120), description text not null default '', published boolean not null default false);
       create table public.topics(id uuid primary key default gen_random_uuid(), subject_id uuid not null references public.subjects(id) on delete cascade, title text not null check(char_length(title) between 1 and 160), description text not null default '', published boolean not null default false);
+      create table public.exams(id uuid primary key default gen_random_uuid(), subject_id uuid not null references public.subjects(id) on delete restrict, created_by uuid references auth.users(id), published boolean not null default false);
+      alter table public.exams enable row level security; grant select on public.exams to authenticated;
       alter table public.subjects enable row level security; alter table public.topics enable row level security;
       grant select,insert,update,delete on public.subjects,public.topics to authenticated;
       create policy subjects_read_published on public.subjects for select to authenticated using(published);
@@ -28,9 +30,29 @@ test('authorized teachers publish to shared catalog without modifying others', a
       insert into public.class_teachers(user_id) select id from auth.users where email in ('teacher@example.test','otherteacher@example.test');
       insert into public.subjects(slug,title,published) values('existing','Existing',true),('hidden','Hidden',false);
     `);
-    for (const migration of ['20261109155525_teacher_catalog.sql', '20261109155633_teacher_catalog_limits.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
+    for (const migration of ['20261109155525_teacher_catalog.sql', '20261109155633_teacher_catalog_limits.sql', '20261109170000_teacher_delete_subject.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
     const ids=Array.from({length:4},(_,i)=>`00000000-0000-4000-8000-00000000000${i+1}`);
     async function as(i) {await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${ids[i-1]}',false)`)}
+    await as(2);
+    let createdEmpty=(await db.query("select public.teacher_create_subject('Empty','empty','') as id")).rows[0].id;
+    await as(3); await assert.rejects(()=>db.query('select public.teacher_delete_subject($1)',[createdEmpty]));
+    await as(4); await assert.rejects(()=>db.query('select public.teacher_delete_subject($1)',[createdEmpty]));
+    await as(2); await db.query('select public.teacher_delete_subject($1)',[createdEmpty]);
+    await db.exec('reset role'); assert.equal((await db.query('select id from public.subjects where id=$1',[createdEmpty])).rows.length,0);
+    await as(2);
+    const withTopic=(await db.query("select public.teacher_create_subject('Topic','with-topic','') as id")).rows[0].id;
+    const withExam=(await db.query("select public.teacher_create_subject('Exam','with-exam','') as id")).rows[0].id;
+    await db.exec('reset role');
+    await db.query("insert into public.topics(subject_id,title,published,created_by) values($1,'Hidden topic',false,$2)",[withTopic,ids[2]]);
+    await db.query('insert into public.exams(subject_id,created_by,published) values($1,$2,false)',[withExam,ids[2]]);
+    await as(2);
+    await assert.rejects(()=>db.query('select public.teacher_delete_subject($1)',[withTopic]),{code:'23503'});
+    await assert.rejects(()=>db.query('select public.teacher_delete_subject($1)',[withExam]),{code:'23503'});
+    await db.exec('reset role');
+    assert.equal((await db.query('select id from public.topics where subject_id=$1',[withTopic])).rows.length,1);
+    assert.equal((await db.query('select id from public.exams where subject_id=$1',[withExam])).rows.length,1);
+    await as(3); assert.equal((await db.query('select id from public.exams where subject_id=$1',[withExam])).rows.length,1);
+    await as(4); assert.equal((await db.query('select id from public.exams where subject_id=$1',[withExam])).rows.length,0);
     await as(4);
     await assert.rejects(()=>db.query("select public.teacher_create_subject('A','a','')"));
     await assert.rejects(()=>db.query("insert into public.subjects(title,slug,published,created_by) values('A','a',true,$1)",[ids[1]]));
@@ -56,6 +78,7 @@ test('authorized teachers publish to shared catalog without modifying others', a
     await as(4); ({rows}=await db.query('select id from public.subjects where id=$1',[created])); assert.equal(rows.length,0);
     await db.exec('reset role'); await db.query('delete from public.class_teachers where user_id=$1',[ids[1]]);
     await as(2); await assert.rejects(()=>db.query("select public.teacher_create_subject('Denied','denied','')"));
+    await assert.rejects(()=>db.query('select public.teacher_delete_subject($1)',[created]));
     ({rows}=await db.query('select id from public.subjects where id=$1',[created])); assert.equal(rows.length,0);
     await as(1); ({rows}=await db.query('select id from public.subjects where id=$1',[created])); assert.equal(rows.length,1);
   } finally {await db.close();}
