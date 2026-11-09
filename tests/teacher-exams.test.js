@@ -12,7 +12,7 @@ test('study links, mixed exam grading and class ranking are isolated by role', a
   create function extensions.gen_random_bytes(integer) returns bytea language sql volatile as $$select decode(substr(md5(random()::text),1,$1*2),'hex')$$;
   grant usage on schema public,auth to authenticated;
   insert into auth.users values ('00000000-0000-4000-8000-000000000001','teacher@example.test'),('00000000-0000-4000-8000-000000000002','student@example.test'),('00000000-0000-4000-8000-000000000003','peer@example.test'),('00000000-0000-4000-8000-000000000004','other@example.test');`);
-  for(const file of ['20261109103721_educamoz_foundation.sql','20261109103735_protect_material_topic_deletion.sql','20261109110257_student_workspace.sql','20261109153033_classrooms.sql','20261109161000_teacher_study_exams.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+  for(const file of ['20261109103721_educamoz_foundation.sql','20261109103735_protect_material_topic_deletion.sql','20261109110257_student_workspace.sql','20261109153033_classrooms.sql','20261109161436_teacher_study_exams.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
   const ids=Array.from({length:4},(_,i)=>`00000000-0000-4000-8000-00000000000${i+1}`);
   await db.query("insert into public.subjects(title,slug,published) values('Math','math',true)");
   await db.query("insert into public.class_teachers(user_id) values($1),($2)",[ids[0],ids[3]]);
