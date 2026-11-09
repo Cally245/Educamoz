@@ -1,0 +1,11 @@
+import express from 'express';
+import path from 'node:path';
+import aiHandler from './ai.js';
+import { fileURLToPath } from 'node:url';
+const app = express();
+app.use(express.json({limit:'16kb'}));
+app.all('/api/ai', aiHandler);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+app.use(express.static(path.join(root,'dist')));
+app.get('*',(req,res)=>res.sendFile(path.join(root,'dist','index.html')));
+app.listen(process.env.PORT || 3001,'0.0.0.0',()=>console.log('EducaMoz server ready'));
