@@ -1,6 +1,14 @@
 import { SYSTEM_INSTRUCTION, buildTutorContext } from './tutor.js';
 
 export const DEFAULT_MODEL = 'gemini-flash-latest';
+export const DEFAULT_TIMEOUT_MS = 30000;
+
+// Keep calls bounded below the platform deadline; invalid settings fail back safely.
+export function geminiTimeoutMs(value) {
+  if (typeof value !== 'string' || !/^[0-9]+$/.test(value)) return DEFAULT_TIMEOUT_MS;
+  const ms = Number(value);
+  return Number.isSafeInteger(ms) && ms >= 1000 && ms <= 90000 ? ms : DEFAULT_TIMEOUT_MS;
+}
 
 // Upstream error messages may echo request content. Only known, static messages
 // can be logged verbatim; all other text is suppressed rather than guessed safe.
@@ -43,7 +51,7 @@ const upstreamErrors = {
 };
 
 /** Calls Gemini without putting the API key in the URL or exposing upstream errors. */
-export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MODEL, history = [], session = null, fetchImpl = fetch}) {
+export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MODEL, history = [], session = null, fetchImpl = fetch, timeoutMs = geminiTimeoutMs(process.env.GEMINI_TIMEOUT_MS)}) {
   if (!apiKey) throw new GeminiError(503, 'O Professor IA ainda não está configurado.', {stage:'configuration'});
   const contents = [];
   for (const item of [...history, {role:'user', text:message}]) {
@@ -64,7 +72,7 @@ export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MOD
         contents,
         generationConfig: {maxOutputTokens: 2048}
       }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(timeoutMs)
     });
   } catch (error) {
     const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
