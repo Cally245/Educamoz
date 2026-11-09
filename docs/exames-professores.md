@@ -1,0 +1,9 @@
+# Materiais, exames e classificações
+
+Professores autorizados podem publicar links HTTP(S) na Biblioteca, com matéria opcional, desde que a matéria e a respetiva disciplina estejam publicadas. O endereço é externo: o acesso e o conteúdo do destino dependem de quem o disponibiliza. Não há upload de ficheiros.
+
+Na área Simulador de exames, professores autorizados podem criar exames para todos os estudantes autenticados, com 1 a 30 perguntas de escolha múltipla e/ou resposta escrita. Os exames são publicados imediatamente. Não há edição de exames publicados por professores nesta versão; a administração existente continua responsável pela gestão geral. As respostas certas não são disponibilizadas aos estudantes. A classificação é de 0 a 20, com o mesmo peso para cada pergunta. As de escolha múltipla são corrigidas pelo servidor; cada resposta escrita é avaliada pelo professor que criou o exame. O resultado só é final quando todas as respostas escritas forem avaliadas. O estudante vê as suas respostas escritas, notas e comentários no histórico de desempenho. Estes resultados são de prática e não são notas oficiais.
+
+O professor autorizado proprietário de uma turma pode consultar a classificação dessa turma para um exame global: aparece a melhor nota final de cada membro atual com tentativa avaliada. Tentativas pendentes não são incluídas. Nomes e notas dos colegas não são visíveis aos estudantes no ranking; cada estudante vê apenas os próprios resultados. Não existe classificação geral pública. Revogar a autorização impede o professor de criar exames, avaliar ou ver o ranking. As respostas e notas permanecem guardadas.
+
+A migração `20261109161000_teacher_study_exams.sql` deve ser aplicada antes da interface. A publicação na base de produção e o fluxo no navegador com contas reais requerem validação independente; não assumir que os testes locais são prova de funcionamento em produção.
