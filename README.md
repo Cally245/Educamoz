@@ -30,3 +30,11 @@ Esta é uma base funcional, não uma implantação de produção concluída. Ant
 ## Publicar na Vercel
 
 O projeto inclui `vercel.json`: a Vercel compila o Vite para `dist`, encaminha as rotas da área de estudo para a aplicação e disponibiliza `/api/ai` como função Node. Liga o projeto ao repositório, define as variáveis de ambiente necessárias na Vercel e cria uma implantação a partir da versão pretendida. Alterações numa pull request não aparecem automaticamente no domínio de produção enquanto não forem integradas na branch de produção e implantadas. O limitador de pedidos em memória não é partilhado entre instâncias serverless; usa um limitador persistente antes de ativar a chave Gemini em produção.
+
+## Esquema inicial do Supabase
+
+As migrações em `supabase/migrations` criam perfis, disciplinas, tópicos, materiais e resultados de prática, sem inserir conteúdos fictícios. As tabelas usam RLS: utilizadores autenticados só acedem aos seus próprios perfis e resultados, e só leem conteúdos publicados. A gestão de conteúdos é reservada ao servidor; ainda não há painel administrativo funcional. Os resultados de prática são fornecidos pelo cliente e **não são notas verificadas**. A interface atual ainda guarda perfil e histórico localmente: criar estas tabelas não ativa a sincronização automaticamente.
+
+### Confirmação de email
+
+O registo envia um link de confirmação; a origem usada no acesso deve estar na lista de redirecionamentos permitidos do Supabase. Sem SMTP personalizado, o serviço de email padrão do Supabase é limitado e não é adequado para registos públicos: configura um fornecedor SMTP e domínio remetente antes de abrir o registo a todos os estudantes. Não desatives a confirmação apenas para contornar essa limitação. As variáveis públicas do Supabase na Vercel entram em vigor apenas num novo build.
