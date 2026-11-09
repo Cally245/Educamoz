@@ -13,7 +13,7 @@ test('uses the requested model and sends the key only in a header', async () => 
   assert.equal(request.url,'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent');
   assert.equal(request.options.headers['x-goog-api-key'],'test-key');
   assert.ok(!request.url.includes('test-key'));
-  assert.equal(JSON.parse(request.options.body).contents[0].parts[0].text,'Explica IA');
+  assert.match(JSON.parse(request.options.body).contents[0].parts[0].text,/Explica IA/);
 });
 test('honours an explicitly configured model', async () => {
   let url;

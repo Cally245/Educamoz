@@ -26,3 +26,7 @@ O Vite encaminha `/api` para o servidor. Para produção: `npm run build` e `npm
 - **Premium:** ainda não há pagamentos ou funcionalidades premium ativas.
 
 Antes de uma disponibilização pública, revê acessibilidade, privacidade, consentimento, monitorização, recuperação de conta, validação de conteúdos, tratamento de erros e testes de segurança. As tabelas antigas de demonstração não são usadas pela interface atual.
+
+## Professor IA avançado
+
+Esta versão acrescenta aulas individuais, seis modos, contexto recente e cotas persistentes verificadas no servidor. Os detalhes da arquitetura, da migração, dos testes, das limitações de privacidade e das funcionalidades ainda não implementadas estão em [docs/professor-ia.md](docs/professor-ia.md). Anexos e RAG ainda não estão disponíveis.

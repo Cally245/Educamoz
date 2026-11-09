@@ -1,5 +1,5 @@
 const DEFAULT_MODEL = 'gemini-flash-latest';
-const SYSTEM_INSTRUCTION = 'És um professor paciente para estudantes moçambicanos. Responde em português claro, explica passo a passo e incentiva o pensamento autónomo. Não inventes factos.';
+import { SYSTEM_INSTRUCTION, buildTutorContext } from './tutor.js';
 
 export class GeminiError extends Error {
   constructor(status, message) {
@@ -9,8 +9,17 @@ export class GeminiError extends Error {
 }
 
 /** Calls Gemini without putting the API key in the URL or exposing upstream errors. */
-export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MODEL, fetchImpl = fetch}) {
+export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MODEL, history = [], session = null, fetchImpl = fetch}) {
   if (!apiKey) throw new GeminiError(503, 'O Professor IA ainda não está configurado.');
+  const contents = [];
+  for (const item of [...history, {role:'user', text:message}]) {
+    if (!['user','model'].includes(item.role) || typeof item.text !== 'string' || !item.text.trim()) continue;
+    if (!contents.length && item.role !== 'user') continue;
+    const previous = contents.at(-1);
+    if (previous?.role === item.role) previous.parts[0].text += '\n\n' + item.text;
+    else contents.push({role:item.role, parts:[{text:item.text}]});
+  }
+  if (contents.length) contents[0].parts[0].text = buildTutorContext(session) + '\n\n' + contents[0].parts[0].text;
   let response;
   try {
     response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -18,7 +27,8 @@ export async function generateGeminiAnswer({message, apiKey, model = DEFAULT_MOD
       headers: {'Content-Type': 'application/json', 'x-goog-api-key': apiKey},
       body: JSON.stringify({
         systemInstruction: {parts: [{text: SYSTEM_INSTRUCTION}]},
-        contents: [{role: 'user', parts: [{text: message}]}]
+        contents,
+        generationConfig: {maxOutputTokens: 2048}
       }),
       signal: AbortSignal.timeout(30000)
     });
